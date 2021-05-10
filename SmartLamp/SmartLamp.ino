@@ -1,11 +1,12 @@
 #include<WiFi.h>
 #include<PubSubClient.h>
 #include<WiFiClientSecure.h>
-
+#include "messaging.h"
 #include "creds.h"
-
+Messaging messageHandler;
 WiFiClient homeAssistantClient = WiFiClient();
-PubSubClient homeAssistantMQTT(homeAssistantClient);
+PubSubClient homeAssistMQTT(homeAssistantClient);
+homeAssistMQTT.setCallback(messageHandler.callback);
 
 void connectToWifi(){
   WiFi.begin(SSID,PWD);
