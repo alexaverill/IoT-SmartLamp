@@ -1,15 +1,43 @@
 #include<WiFi.h>
 #include<PubSubClient.h>
 #include<WiFiClientSecure.h>
+#include <ArduinoJson.h>
+
 #include "messaging.h"
 #include "creds.h"
 #include "ledcontroller.h";
-
-
+#include <functional>
 WiFiClient homeAssistClient = WiFiClient();
 PubSubClient homeAssistMQTT(homeAssistClient);
 Adafruit_NeoPixel strip(24,4, NEO_GRBW + NEO_KHZ800);
-LEDController leds(&strip);
+
+void SwitchCallback(bool state){
+  StaticJsonDocument<256> doc;
+  doc["state"]=state?"ON":"OFF";
+  char newState[256];
+  serializeJson(doc,newState);
+  homeAssistMQTT.publish(StateTopic,newState);
+}
+void ColorCallBack(bool isOn,int r,int g, int b){
+  StaticJsonDocument<256> doc;
+  doc["state"]=isOn?"ON":"OFF";
+  doc["color"]["r"] = r;
+  doc["color"]["g"] = g;
+  doc["color"]["b"] = b;
+  char newState[256];
+  serializeJson(doc,newState);
+  homeAssistMQTT.publish(StateTopic, newState);
+}
+void BrightnessCallback(bool isOn,int b){
+    StaticJsonDocument<256> doc;
+  doc["state"]=isOn?"ON":"OFF";
+  doc["brightness"] = b;
+  char newState[256];
+  serializeJson(doc,newState);
+  homeAssistMQTT.publish(StateTopic,newState);
+}
+
+LEDController leds(&strip,SwitchCallback,ColorCallBack,BrightnessCallback);
 Messaging messageHandler(&leds);
 
 void connectToWifi(){
@@ -23,7 +51,7 @@ void connectToWifi(){
  void callback(char* topic, byte* payload, unsigned int length) {
       messageHandler.callback(topic,payload,length);
   }
-  
+
 void connectToMQTT(){
     homeAssistMQTT.setServer(HA_ENDPOINT,1883);
     homeAssistMQTT.setCallback(callback);
@@ -36,20 +64,19 @@ void connectToMQTT(){
       delay(5000);
     }
     Serial.println("HA MQTT Connected");
-    homeAssistMQTT.subscribe(SubTopic);
+    homeAssistMQTT.subscribe(CommandTopic);
 }
 
 void setup() {
   
-  // put your setup code here, to run once:
   Serial.begin(9600);
   connectToWifi();
   connectToMQTT();
   leds.start();
+  leds.off();
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
   homeAssistMQTT.loop();
   leds.update();
 }
